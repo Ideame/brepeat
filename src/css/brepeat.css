@@ -1,0 +1,13 @@
+#brepeat-popup label { display: inline; }
+
+#brepeat-popup input { width: auto !important; }
+#brepeat-popup input[type="radio"], #brepeat-popup input[type="checkbox"] { margin: 0 5px; }
+
+#brepeat-popup #brepeat-interval { margin-right: 5px; }
+
+#brepeat-popup th { text-align: right; vertical-align: top; padding: 5px 10px 5px 0; }
+#brepeat-popup td { padding: 5px 0; }
+
+#brepeat-popup .ends-row { height: 30px; }
+
+.disabled a.brepeat-edit { display: none; }

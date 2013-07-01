@@ -1,0 +1,18 @@
+{
+  "name": "brepeat",
+  "version": "1.0",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/ideame/brepeat.git"
+  },
+  "keywords": [
+    "twitter-bootstrap",
+    "bootstrap",
+    "brepeat",
+    "repeat",
+    "datepicker",
+    "datetimepicker"
+  ],
+  "devDependencies": {
+  }
+}
