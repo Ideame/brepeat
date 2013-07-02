@@ -31,6 +31,8 @@
         if (this._parentDtp.length === 0) this._parentDtp = null;
         if (this._parentDp.length === 0) this._parentDp = null;
 
+        this._valueRequested = false;
+
         var pickerType;
         if ($.fn.datetimepicker && !this._parentDp) {
             pickerType = 'datetimepicker';
@@ -121,6 +123,9 @@
             click: function(e) {
                 _this.restore();
                 _this.hide();
+                if (!_this._valueRequested) {
+                    _this.element.removeAttr('checked');
+                }
             }
         });
 
@@ -133,6 +138,7 @@
                     _this._summaryDisplay.html(_this.summary() + '. <a class="brepeat-edit" href="javascript:void(0);">' + _this._lang.edit + '</a>');
                 }
                 _this.hide();
+                _this._valueRequested = true;
             }
         });
 
@@ -230,14 +236,97 @@
                 }
             }
 
+            if (this._options.iCal || this._options.ical || this.element.data().ical) {
+                this.iCal(this._options.iCal || this._options.ical || this.element.data().ical);
+            }
+
             this.summary(true);
         },
 
-        val: function() {
+        val: function(noICal) {
             var r = this.interval();
             r.ends = this.ends();
             r.startsOn = this.startsOn();
+            if (!noICal) r.iCal = this.iCal();
             return r;
+        },
+
+        iCal: function(value) {
+            // set
+            if (!value) {
+                // get
+                var val = this.val(true);
+                var r = 'DTSTART:' + dateToICalDate(val.startsOn) + '\nRRULE:FREQ=' + val.frequency.toUpperCase();
+
+                if (val.every > 1) r += ';INTERVAL=' + val.every;
+
+                if (val.ends.type === 'after') {
+                    r += ';COUNT=' + val.ends.occurrences;
+                } else if (val.ends.type === 'on') {
+                    r += ';UNTIL=' + dateToICalDate(val.ends.date);
+                }
+
+                if (val.by) {
+                    if (val.by.type === 'dm') {
+                        r += ';BYMONTHDAY=' + val.by.day;
+                    } else if (val.by.type === 'dw') {
+                        r += ';BYDAY=' + (val.by.ordinal == 5 ? '-1' : val.by.ordinal) + this._lang.dates.days[val.by.day].min.toUpperCase();
+                    }
+                } else if (val.on && val.on.length > 0) {
+                    r += ';BYDAY=' + $.map(val.on, function(d) { return d.toUpperCase(); }).join(',');
+                }
+
+                return r;
+            }
+
+            // set
+            var arr = value.split('\n');
+            if (arr.length != 2) arr = value.split('\\n');
+            if (arr.length != 2) throw new Error('Invalid iCal recurrence set.');
+
+            this.startsOn(iCalDateToDate(arr[0].split(':')[1]));
+
+            arr = arr[1].split(':');
+
+            if (arr.length != 2) throw new Error('Invalid iCal recurrence set.');
+            arr = arr[1].split(';');
+
+            var _this = this;
+            var params = $.map(arr, function(p) {
+                p = p.split('=');
+                if (p.length != 2) throw new Error('Invalid iCal recurrence set.');
+
+                var k = p[0], v = p[1];
+                switch (k) {
+                    case 'FREQ':
+                        _this.frequency(v.toLowerCase());
+                        break;
+                    case 'INTERVAL':
+                        _this.interval('every', parseInt(v, 10));
+                        break;
+                    case 'BYDAY':
+                        ordinals = $.map(v.split(','), function(d){ return d.length == 3 ? d : null; });
+                        if (ordinals.length > 0) {
+                            _this.interval('by', 'dw');
+                        } else {
+                            _this.interval('on', v);
+                        }
+                        break;
+                    case 'BYMONTHDAY':
+                        _this.interval('by', 'dm');
+                        break;
+                    case 'COUNT':
+                        _this.ends('after', parseInt(v, 10));
+                        break;
+                    case 'UNTIL':
+                        _this.ends('on', iCalDateToDate(v));
+                }
+                return k;
+            });
+            params = params.join(',');
+            if (!/INTERVAL/.test(params)) this.interval('every', 1);
+            if (!/COUNT|UNTIL/.test(params)) this.ends('never');
+            if (!/BYDAY/.test(params)) this.interval('on', '');
         },
 
         summary: function(updateUI) {
@@ -285,7 +374,7 @@
             }
 
             if (val.ends.type === 'after') {
-                summary += ', ' + val.ends.ocurrences + ' ' + this._lang.times;
+                summary += ', ' + val.ends.occurrences + ' ' + this._lang.times;
             } else if (val.ends.type === 'on') {
                 summary += ', ' + this._lang.until + ' ' + this._lang.dates.monthsShort[val.ends.date.getMonth()] + ' ' + val.ends.date.getDate() + ', ' + val.ends.date.getFullYear();
             }
@@ -394,7 +483,7 @@
                     break;
 
                 case 'on':
-                    if (!value) throw new Error('Invalid value for interval type. Expected values: mo,tu,we,th,fr,sa,su.');
+                    if (value === undefined) throw new Error('Invalid value for interval type. Expected values: mo,tu,we,th,fr,sa,su.');
                     if (typeof value === 'string') value = value.split(',');
 
                     //clen checkboxes
@@ -444,7 +533,7 @@
                 var r = { type: this.popup.find('input[name=endson]:checked').val() };
                 switch (r.type) {
                     case 'after':
-                        r.ocurrences = this.popup.find('#brepeat-endson-after-input').val();
+                        r.occurrences = this.popup.find('#brepeat-endson-after-input').val();
                         break;
 
                     case 'on':
@@ -698,6 +787,26 @@
 
 
         return popupTemplate;
+    }
+
+    function dateToICalDate(date) {
+        if (!date) return '';
+
+        var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+        return date.getUTCFullYear() + pad(date.getUTCMonth() + 1) + pad(date.getUTCDate()) +
+            'T' + pad(date.getUTCHours()) + pad(date.getUTCMinutes()) + pad(date.getUTCSeconds()) + 'Z';
+    }
+
+    function iCalDateToDate(iCalDate) {
+        if (!iCalDate) return null;
+
+        return new Date(iCalDate.substr(0,4),
+            parseInt(iCalDate.substr(4,2), 10)-1,
+            iCalDate.substr(6,2),
+            iCalDate.substr(9,2),
+            iCalDate.substr(11,2),
+            iCalDate.substr(13,2));
+
     }
 
 }( window.jQuery );
