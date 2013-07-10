@@ -71,8 +71,18 @@
             });
         }
 
-        if (_this._summaryDisplay) {
-            _this._summaryDisplay.find('a.brepeat-edit').live('click', $.proxy(this.show, this));
+        if (this._summaryDisplay) {
+            this._summaryDisplay.find('a.brepeat-edit').live('click', $.proxy(this.show, this));
+        }
+
+        var updateSummaryDisplay = function () {
+            if (_this._summaryDisplay) {
+                _this._summaryDisplay.html(_this.summary() + '. <a class="brepeat-edit" href="javascript:void(0);">' + _this._lang.edit + '</a>');
+            }
+        };
+
+        if (this._options.iCal || this._options.ical || this.element.data().ical) {
+            this.element.attr('checked', true);
         }
 
         this.element.on({
@@ -134,15 +144,16 @@
                 if (_this._callback) {
                     _this._callback(_this.val());
                 }
-                if (_this._summaryDisplay) {
-                    _this._summaryDisplay.html(_this.summary() + '. <a class="brepeat-edit" href="javascript:void(0);">' + _this._lang.edit + '</a>');
-                }
+
+                updateSummaryDisplay();
+
                 _this.hide();
                 _this._valueRequested = true;
             }
         });
 
         this.reset();
+        if (this.element.is(':checked')) updateSummaryDisplay();
     };
 
     Brepeat.prototype = {
@@ -237,33 +248,33 @@
             }
 
             if (this._options.iCal || this._options.ical || this.element.data().ical) {
-                this.iCal(this._options.iCal || this._options.ical || this.element.data().ical);
+                this.ical(this._options.iCal || this._options.ical || this.element.data().ical);
             }
 
             this.summary(true);
         },
 
-        val: function(noICal) {
+        val: function(noIcal) {
             var r = this.interval();
             r.ends = this.ends();
             r.startsOn = this.startsOn();
-            if (!noICal) r.iCal = this.iCal();
+            if (!noIcal) r.ical = this.ical();
             return r;
         },
 
-        iCal: function(value) {
+        ical: function(value) {
             // set
             if (!value) {
                 // get
                 var val = this.val(true);
-                var r = 'DTSTART:' + dateToICalDate(val.startsOn) + '\nRRULE:FREQ=' + val.frequency.toUpperCase();
+                var r = 'DTSTART:' + dateToicalDate(val.startsOn) + '\nRRULE:FREQ=' + val.frequency.toUpperCase();
 
                 if (val.every > 1) r += ';INTERVAL=' + val.every;
 
                 if (val.ends.type === 'after') {
                     r += ';COUNT=' + val.ends.occurrences;
                 } else if (val.ends.type === 'on') {
-                    r += ';UNTIL=' + dateToICalDate(val.ends.date);
+                    r += ';UNTIL=' + dateToicalDate(val.ends.date);
                 }
 
                 if (val.by) {
@@ -282,19 +293,19 @@
             // set
             var arr = value.split('\n');
             if (arr.length != 2) arr = value.split('\\n');
-            if (arr.length != 2) throw new Error('Invalid iCal recurrence set.');
+            if (arr.length != 2) throw new Error('Invalid ical recurrence set.');
 
-            this.startsOn(iCalDateToDate(arr[0].split(':')[1]));
+            this.startsOn(icalDateToDate(arr[0].split(':')[1]));
 
             arr = arr[1].split(':');
 
-            if (arr.length != 2) throw new Error('Invalid iCal recurrence set.');
+            if (arr.length != 2) throw new Error('Invalid ical recurrence set.');
             arr = arr[1].split(';');
 
             var _this = this;
             var params = $.map(arr, function(p) {
                 p = p.split('=');
-                if (p.length != 2) throw new Error('Invalid iCal recurrence set.');
+                if (p.length != 2) throw new Error('Invalid ical recurrence set.');
 
                 var k = p[0], v = p[1];
                 switch (k) {
@@ -319,7 +330,7 @@
                         _this.ends('after', parseInt(v, 10));
                         break;
                     case 'UNTIL':
-                        _this.ends('on', iCalDateToDate(v));
+                        _this.ends('on', icalDateToDate(v));
                 }
                 return k;
             });
@@ -484,7 +495,9 @@
 
                 case 'on':
                     if (value === undefined) throw new Error('Invalid value for interval type. Expected values: mo,tu,we,th,fr,sa,su.');
-                    if (typeof value === 'string') value = value.split(',');
+                    if (typeof value === 'string') {
+                        value = $.trim(value) === '' ? [] : value.split(',');
+                    }
 
                     //clen checkboxes
                     this.popup.find('#brepeat-on input[type="checkbox"]').attr('checked', false);
@@ -789,7 +802,7 @@
         return popupTemplate;
     }
 
-    function dateToICalDate(date) {
+    function dateToicalDate(date) {
         if (!date) return '';
 
         var pad = function(n) { return (n < 10 ? '0' : '') + n; };
@@ -797,15 +810,15 @@
             'T' + pad(date.getUTCHours()) + pad(date.getUTCMinutes()) + pad(date.getUTCSeconds()) + 'Z';
     }
 
-    function iCalDateToDate(iCalDate) {
-        if (!iCalDate) return null;
+    function icalDateToDate(icalDate) {
+        if (!icalDate) return null;
 
-        return new Date(iCalDate.substr(0,4),
-            parseInt(iCalDate.substr(4,2), 10)-1,
-            iCalDate.substr(6,2),
-            iCalDate.substr(9,2),
-            iCalDate.substr(11,2),
-            iCalDate.substr(13,2));
+        return new Date(icalDate.substr(0,4),
+            parseInt(icalDate.substr(4,2), 10)-1,
+            icalDate.substr(6,2),
+            icalDate.substr(9,2),
+            icalDate.substr(11,2),
+            icalDate.substr(13,2));
 
     }
 
